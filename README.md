@@ -15,4 +15,4 @@ python run.py --config src/configs/retail.yaml fit
 ```
 
 ## Dataset
-Due to file size limitations, we have not uploaded all of the data. You can download the datasets from [Google Drive](https://drive.google.com/file/d/1Ki8ibuTgkxnBITCe4gNLtrR0mG1vxevl/view?usp=sharing) and put them into the data/ folder.
+Due to file size limitations, we have not uploaded all of the data. You can download the datasets from [Google Drive](https://drive.google.com/drive/folders/1RxTTZtcjdcK063pkRblRxzVDqVZpZX-R?usp=sharing) and put them into the data/ folder.
