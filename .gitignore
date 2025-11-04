@@ -1,2 +1,6 @@
 data/
 logs/
+gear_env/
+__pycache__/
+**/__pycache__/
+*.log

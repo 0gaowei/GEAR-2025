@@ -1,6 +1,6 @@
 
 import pytorch_lightning as pl
-from typing import List, Union
+from typing import List, Union, Optional
 from .datasets import dataset_factory
 from .dataloaders import RecDataloader
 
@@ -9,7 +9,7 @@ class RecDataModule(pl.LightningDataModule):
         self,
         dataset_code: str = None,
         target_behavior: str = None,
-        multi_behavior: Union[bool, List] = None,
+        multi_behavior: Optional[Union[bool, List[str]]] = None,
         min_uc: int = None,
         num_items: int = None,
         num_users: int = None,
@@ -82,7 +82,7 @@ class RecDataModuleNeg(pl.LightningDataModule):
         self,
         dataset_code: str = None,
         target_behavior: str = None,
-        multi_behavior: bool = None,
+        multi_behavior: Optional[Union[bool, List[str]]] = None,
         min_uc: int = None,
         num_items: int = None,
         num_users: int = None,
