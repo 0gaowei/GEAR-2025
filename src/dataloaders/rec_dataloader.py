@@ -20,6 +20,7 @@ class RecDataloader(AbstractDataloader):
             train_batch_size,
             val_batch_size,
             predict_only_target=False,
+            full_ranking=False,
         ):
         super().__init__(dataset,
             val_negative_sampler_code,
@@ -33,6 +34,7 @@ class RecDataloader(AbstractDataloader):
         self.train_batch_size = train_batch_size
         self.val_batch_size = val_batch_size
         self.predict_only_target = predict_only_target
+        self.full_ranking = full_ranking
     
     def get_train_loader(self):
         dataset = self._get_train_dataset()
@@ -55,13 +57,16 @@ class RecDataloader(AbstractDataloader):
         return dataloader
 
     def _get_eval_dataset(self):
+        # 检查是否启用全排序模式
+        full_ranking = getattr(self, 'full_ranking', False)
         return RecEvalDataset(
             self.train, self.train_b, 
             self.val, self.val_b, 
             self.train_t, self.val_t, 
             self.val_num, self.seg_len,
             self.num_items, self.target_code,
-            self.val_negative_samples
+            self.val_negative_samples,
+            full_ranking=full_ranking
         )
 
 class RecTrainDataset(data_utils.Dataset):
@@ -123,7 +128,7 @@ class RecTrainDataset(data_utils.Dataset):
 
 
 class RecEvalDataset(data_utils.Dataset):
-    def __init__(self, u2seq, u2b, u2answer, u2ab, u2t, u2at, val_num, max_len, num_items, target_code, negative_samples):
+    def __init__(self, u2seq, u2b, u2answer, u2ab, u2t, u2at, val_num, max_len, num_items, target_code, negative_samples, full_ranking=False):
         self.u2seq = u2seq
         self.u2b = u2b
         self.u2answer = u2answer
@@ -136,6 +141,7 @@ class RecEvalDataset(data_utils.Dataset):
         self.negative_samples = negative_samples
         self.num_items = num_items
         self.target_code = target_code
+        self.full_ranking = full_ranking
 
     def __len__(self):
         return self.val_num
@@ -144,10 +150,23 @@ class RecEvalDataset(data_utils.Dataset):
         user = self.users[index]
         seq = self.u2seq[user]
         answer = self.u2answer[user]
-        negs = self.negative_samples[user]
-
-        candidates = answer + negs
-        labels = [1] * len(answer) + [0] * len(negs)
+        
+        if self.full_ranking:
+            # 全排序模式：所有物品都是候选
+            # 排除序列中已出现的物品（避免数据泄露）
+            seen_items = set(seq)
+            candidates = [i for i in range(1, self.num_items + 1) if i not in seen_items]
+            # 确保答案物品在candidates中（即使它在seen_items中，我们也要包含它）
+            for ans in answer:
+                if ans not in candidates:
+                    candidates.append(ans)
+            # 创建标签：1表示答案物品，0表示其他
+            labels = [1 if item in answer else 0 for item in candidates]
+        else:
+            # 负采样模式：原有逻辑
+            negs = self.negative_samples[user]
+            candidates = answer + negs
+            labels = [1] * len(answer) + [0] * len(negs)
 
         seq = seq + [self.num_items + 1]
         seq = seq[-self.max_len:]

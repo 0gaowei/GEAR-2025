@@ -21,6 +21,7 @@ class RecDataModule(pl.LightningDataModule):
         train_batch_size: int = None,
         val_batch_size: int = None,
         predict_only_target: bool = None,
+        full_ranking: bool = False,
     ):
         super().__init__()
         self.dataset_code = dataset_code
@@ -37,6 +38,7 @@ class RecDataModule(pl.LightningDataModule):
         self.train_batch_size = train_batch_size
         self.val_batch_size = val_batch_size
         self.predict_only_target = predict_only_target
+        self.full_ranking = full_ranking
 
     def prepare_data(self):
         # download, split, etc...
@@ -70,6 +72,7 @@ class RecDataModule(pl.LightningDataModule):
             self.train_batch_size,
             self.val_batch_size,
             self.predict_only_target,
+            self.full_ranking,
         )
 
     def train_dataloader(self):
