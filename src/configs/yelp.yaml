@@ -36,7 +36,7 @@ fit:
           monitor: 'Val:NDCG@10'
           patience: 30
           mode: max  
-    devices: [0]
+    devices: [1]
     accelerator: gpu
   seed_everything: 42
 
