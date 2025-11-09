@@ -1,4 +1,3 @@
-
 import pytorch_lightning as pl
 from typing import List, Union, Optional
 from .datasets import dataset_factory
@@ -22,6 +21,9 @@ class RecDataModule(pl.LightningDataModule):
         val_batch_size: int = None,
         predict_only_target: bool = None,
         full_ranking: bool = False,
+        train_file: Optional[str] = None,
+        val_file: Optional[str] = None,
+        test_file: Optional[str] = None,
     ):
         super().__init__()
         self.dataset_code = dataset_code
@@ -39,26 +41,31 @@ class RecDataModule(pl.LightningDataModule):
         self.val_batch_size = val_batch_size
         self.predict_only_target = predict_only_target
         self.full_ranking = full_ranking
+        self.train_file = train_file
+        self.val_file = val_file
+        self.test_file = test_file
 
     def prepare_data(self):
-        # download, split, etc...
-        # only called on 1 GPU/TPU in distributed
         dataset_factory(
             self.dataset_code,
             self.target_behavior,
             self.multi_behavior,
             self.min_uc,
-            )
+            train_file=self.train_file,
+            val_file=self.val_file,
+            test_file=self.test_file,
+        )
 
     def setup(self, stage):
-        # make assignments here (val/train/test split)
-        # called on every process in DDP
         self.dataset = dataset_factory(
             self.dataset_code,
             self.target_behavior,
             self.multi_behavior,
             self.min_uc,
-            )
+            train_file=self.train_file,
+            val_file=self.val_file,
+            test_file=self.test_file,
+        )
     
         self.dataloader = RecDataloader(
             self.dataset,
@@ -119,24 +126,20 @@ class RecDataModuleNeg(pl.LightningDataModule):
         self.predict_only_target = predict_only_target
 
     def prepare_data(self):
-        # download, split, etc...
-        # only called on 1 GPU/TPU in distributed
         dataset_factory(
             self.dataset_code,
             self.target_behavior,
             self.multi_behavior,
             self.min_uc,
-            )
+        )
 
     def setup(self, stage):
-        # make assignments here (val/train/test split)
-        # called on every process in DDP
         self.dataset = dataset_factory(
             self.dataset_code,
             self.target_behavior,
             self.multi_behavior,
             self.min_uc,
-            )
+        )
     
         self.dataloader = RecDataloaderNeg(
             self.dataset,

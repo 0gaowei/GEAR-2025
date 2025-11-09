@@ -35,6 +35,10 @@ class RecDataloader(AbstractDataloader):
         self.val_batch_size = val_batch_size
         self.predict_only_target = predict_only_target
         self.full_ranking = full_ranking
+        self.test = getattr(self, 'test', None)
+        self.test_b = getattr(self, 'test_b', None)
+        self.test_t = getattr(self, 'test_t', None)
+        self.test_num = getattr(self, 'test_num', 0)
     
     def get_train_loader(self):
         dataset = self._get_train_dataset()
@@ -59,7 +63,7 @@ class RecDataloader(AbstractDataloader):
     def _get_eval_dataset(self):
         # 检查是否启用全排序模式
         full_ranking = getattr(self, 'full_ranking', False)
-        return RecEvalDataset(
+        val_dataset = RecEvalDataset(
             self.train, self.train_b, 
             self.val, self.val_b, 
             self.train_t, self.val_t, 
@@ -68,6 +72,18 @@ class RecDataloader(AbstractDataloader):
             self.val_negative_samples,
             full_ranking=full_ranking
         )
+        if self.test and self.test_b:
+            test_dataset = RecEvalDataset(
+                self.train, self.train_b,
+                self.test, self.test_b,
+                self.train_t, self.test_t,
+                self.test_num, self.seg_len,
+                self.num_items, self.target_code,
+                None,
+                full_ranking=full_ranking
+            )
+            val_dataset.test_dataset = test_dataset
+        return val_dataset
 
 class RecTrainDataset(data_utils.Dataset):
     def __init__(self, u2seq, u2b, u2t, max_len, mask_prob, num_items, target_code, predict_only_target):
