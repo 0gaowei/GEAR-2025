@@ -24,8 +24,8 @@ fit:
     num_workers: 4
     val_negative_sampler_code: random
     val_negative_sample_size: 99
-    train_batch_size: 128
-    val_batch_size: 128
+    train_batch_size: 64
+    val_batch_size: 64
     predict_only_target: False
 
   trainer:
