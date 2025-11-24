@@ -55,6 +55,7 @@ plotly==6.3.1
 protobuf==6.33.0
 psutil==7.1.0
 python-dateutil==2.9.0.post0
+pytorch-lightning==2.1.0
 pytz==2025.2
 PyYAML==6.0.3
 recbole==1.2.0

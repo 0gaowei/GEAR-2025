@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 from torchmetrics import MeanMetric
 from .models.sasrec import SASRec
 from .models.GEAR import GEAR
-from .utils import recalls_and_ndcgs_for_ks
+from .utils import compute_metrics
 
 
 class RecModel(pl.LightningModule):
@@ -73,7 +73,7 @@ class RecModel(pl.LightningModule):
         logits = self.predict(input_ids[:, :-1], b_seq, time_bias, candidates)
         labels = batch['labels'].squeeze()
 
-        metrics = recalls_and_ndcgs_for_ks(logits, labels, [1, 5, 10, 20, 50])
+        metrics = compute_metrics(logits, labels)
         self.validation_step_outputs.append(metrics)
         return metrics
     

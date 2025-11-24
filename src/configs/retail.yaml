@@ -24,8 +24,8 @@ fit:
     num_workers: 4
     val_negative_sampler_code: random
     val_negative_sample_size: 99
-    train_batch_size: 64
-    val_batch_size: 64
+    train_batch_size: 96
+    val_batch_size: 128
     predict_only_target: False
 
   trainer:
@@ -36,7 +36,7 @@ fit:
           monitor: 'Val:NDCG@10'
           patience: 30
           mode: max  
-    devices: [0]
+    devices: [1]
     accelerator: gpu
     accumulate_grad_batches: 1
   seed_everything: 42
