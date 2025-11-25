@@ -41,15 +41,12 @@ def view_results(log_dir):
     
     # 分类显示指标
     train_metrics = []
-    val_metrics = []
     test_metrics = []
     other_metrics = []
     
     for tag in scalar_tags:
         if tag.startswith('train') or 'Train' in tag:
             train_metrics.append(tag)
-        elif tag.startswith('Val') or tag.startswith('val'):
-            val_metrics.append(tag)
         elif tag.startswith('Test') or tag.startswith('test'):
             test_metrics.append(tag)
         else:
@@ -66,22 +63,7 @@ def view_results(log_dir):
                 latest = events[-1]
                 print(f"  {tag:40s} = {latest.value:.6f} (step: {latest.step}, epoch: {latest.wall_time:.0f})")
     
-    # 显示验证指标
-    if val_metrics:
-        print("\n" + "=" * 80)
-        print("验证指标 (Validation Metrics)")
-        print("=" * 80)
-        for tag in sorted(val_metrics):
-            events = ea.Scalars(tag)
-            if events:
-                latest = events[-1]
-                # 获取最佳值
-                best_value = max(events, key=lambda x: x.value).value
-                best_step = max(events, key=lambda x: x.value).step
-                print(f"  {tag:40s} = {latest.value:.6f} (最新)")
-                print(f"  {'最佳值':40s} = {best_value:.6f} (step: {best_step})")
-    
-    # 显示测试指标
+    # 直接关注测试指标
     if test_metrics:
         print("\n" + "=" * 80)
         print("测试指标 (Test Metrics)")
@@ -90,7 +72,9 @@ def view_results(log_dir):
             events = ea.Scalars(tag)
             if events:
                 latest = events[-1]
-                print(f"  {tag:40s} = {latest.value:.6f} (step: {latest.step})")
+                best_event = max(events, key=lambda x: x.value)
+                print(f"  {tag:40s} = {latest.value:.6f} (最新, step: {latest.step})")
+                print(f"  {'最佳值':40s} = {best_event.value:.6f} (step: {best_event.step})")
     
     # 显示其他指标
     if other_metrics:

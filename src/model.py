@@ -23,6 +23,7 @@ class RecModel(pl.LightningModule):
 
         self.training_step_outputs = []
         self.validation_step_outputs = []
+        self.test_step_outputs = []
         self.average_loss = MeanMetric()
     
     def forward(self, input_ids, b_seq, time_bias):
@@ -78,11 +79,32 @@ class RecModel(pl.LightningModule):
         return metrics
     
     def on_validation_epoch_end(self):
-        keys = self.validation_step_outputs[0].keys()
-        for k in keys:
-            tmp = []
-            for o in self.validation_step_outputs:
-                tmp.append(o[k])
-            self.log(f'Val:{k}', torch.Tensor(tmp).mean())
+        self._aggregate_and_log_metrics(self.validation_step_outputs, 'Val')
         self.validation_step_outputs.clear()
+
+    def test_step(self, batch, batch_idx):
+        input_ids = batch['input_ids']
+        b_seq = batch['behaviors']
+        time_bias = batch['time_bias']
+        candidates = batch['candidates'].squeeze()
+
+        logits = self.predict(input_ids[:, :-1], b_seq, time_bias, candidates)
+        labels = batch['labels'].squeeze()
+
+        metrics = compute_metrics(logits, labels)
+        self.test_step_outputs.append(metrics)
+        return metrics
+
+    def on_test_epoch_end(self):
+        self._aggregate_and_log_metrics(self.test_step_outputs, 'Test')
+        self.test_step_outputs.clear()
+
+    def _aggregate_and_log_metrics(self, outputs, prefix: str):
+        if not outputs:
+            return
+        keys = outputs[0].keys()
+        for k in keys:
+            tmp = [o[k] for o in outputs]
+            metric_value = torch.tensor(tmp, device=self.device).mean()
+            self.log(f'{prefix}:{k}', metric_value, sync_dist=True)
         

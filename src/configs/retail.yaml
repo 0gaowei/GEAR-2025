@@ -22,11 +22,10 @@ fit:
     num_users: 147894
     max_len: 50
     num_workers: 4
-    val_negative_sampler_code: random
-    val_negative_sample_size: 99
-    train_batch_size: 96
+    train_batch_size: 96  # 每个GPU的batch size，两个GPU总有效batch size为192
     val_batch_size: 128
     predict_only_target: False
+    full_ranking: true
 
   trainer:
     default_root_dir: logs/retail/full
@@ -36,8 +35,9 @@ fit:
           monitor: 'Val:NDCG@10'
           patience: 30
           mode: max  
-    devices: [1]
+    devices: [0, 1]  # 使用两个GPU
     accelerator: gpu
+    strategy: ddp  # 使用分布式数据并行策略
     accumulate_grad_batches: 1
   seed_everything: 42
     

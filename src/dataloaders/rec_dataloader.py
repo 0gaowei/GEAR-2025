@@ -15,16 +15,14 @@ class RecDataloader(AbstractDataloader):
             num_items,
             num_users,
             num_workers,
-            val_negative_sampler_code,
-            val_negative_sample_size,
             train_batch_size,
             val_batch_size,
             predict_only_target=False,
-            full_ranking=False,
+            full_ranking=True,
         ):
-        super().__init__(dataset,
-            val_negative_sampler_code,
-            val_negative_sample_size)
+        super().__init__(dataset)
+        if not full_ranking:
+            raise ValueError("Negative sampling evaluation is no longer supported. Set full_ranking=True.")
         self.target_code = self.bmap.get('buy') if self.bmap.get('buy') else self.bmap.get('pos')
         self.seg_len = seg_len
         self.mask_prob = mask_prob
@@ -34,11 +32,7 @@ class RecDataloader(AbstractDataloader):
         self.train_batch_size = train_batch_size
         self.val_batch_size = val_batch_size
         self.predict_only_target = predict_only_target
-        self.full_ranking = full_ranking
-        self.test = getattr(self, 'test', None)
-        self.test_b = getattr(self, 'test_b', None)
-        self.test_t = getattr(self, 'test_t', None)
-        self.test_num = getattr(self, 'test_num', 0)
+        self.full_ranking = True
     
     def get_train_loader(self):
         dataset = self._get_train_dataset()
@@ -60,6 +54,14 @@ class RecDataloader(AbstractDataloader):
                                            shuffle=False, num_workers=self.num_workers)
         return dataloader
 
+    def get_test_loader(self):
+        if not (self.test and self.test_b):
+            return None
+        dataset = self._get_test_dataset()
+        dataloader = data_utils.DataLoader(dataset, batch_size=self.val_batch_size,
+                                           shuffle=False, num_workers=self.num_workers)
+        return dataloader
+
     def _get_eval_dataset(self):
         # 检查是否启用全排序模式
         full_ranking = getattr(self, 'full_ranking', False)
@@ -70,20 +72,23 @@ class RecDataloader(AbstractDataloader):
             self.val_num, self.seg_len,
             self.num_items, self.target_code,
             self.val_negative_samples,
-            full_ranking=full_ranking
+            full_ranking=True
         )
-        if self.test and self.test_b:
-            test_dataset = RecEvalDataset(
-                self.train, self.train_b,
-                self.test, self.test_b,
-                self.train_t, self.test_t,
-                self.test_num, self.seg_len,
-                self.num_items, self.target_code,
-                None,
-                full_ranking=full_ranking
-            )
-            val_dataset.test_dataset = test_dataset
         return val_dataset
+
+    def _get_test_dataset(self):
+        # 检查是否启用全排序模式
+        full_ranking = getattr(self, 'full_ranking', False)
+        test_dataset = RecEvalDataset(
+            self.train, self.train_b,
+            self.test, self.test_b,
+            self.train_t, self.test_t,
+            self.test_num, self.seg_len,
+            self.num_items, self.target_code,
+            self.val_negative_samples,
+            full_ranking=True
+        )
+        return test_dataset
 
 class RecTrainDataset(data_utils.Dataset):
     def __init__(self, u2seq, u2b, u2t, max_len, mask_prob, num_items, target_code, predict_only_target):
@@ -158,9 +163,10 @@ class RecEvalDataset(data_utils.Dataset):
         self.num_items = num_items
         self.target_code = target_code
         self.full_ranking = full_ranking
+        self.all_items = torch.arange(1, self.num_items + 1, dtype=torch.long) if self.full_ranking else None
 
     def __len__(self):
-        return self.val_num
+        return len(self.users)
 
     def __getitem__(self, index):
         user = self.users[index]
@@ -168,19 +174,15 @@ class RecEvalDataset(data_utils.Dataset):
         answer = self.u2answer[user]
         
         if self.full_ranking:
-            # 全排序模式：所有物品都是候选
-            # 排除序列中已出现的物品（避免数据泄露）
-            seen_items = set(seq)
-            candidates = [i for i in range(1, self.num_items + 1) if i not in seen_items]
-            # 确保答案物品在candidates中（即使它在seen_items中，我们也要包含它）
+            # 全排序模式：直接对所有物品打分
+            candidates = self.all_items
+            labels = torch.zeros_like(candidates)
             for ans in answer:
-                if ans not in candidates:
-                    candidates.append(ans)
-            # 创建标签：1表示答案物品，0表示其他
-            labels = [1 if item in answer else 0 for item in candidates]
+                if 0 < ans <= self.num_items:
+                    labels[ans - 1] = 1
         else:
             # 负采样模式：原有逻辑
-            negs = self.negative_samples[user]
+            negs = self.negative_samples.get(user, []) if self.negative_samples else []
             candidates = answer + negs
             labels = [1] * len(answer) + [0] * len(negs)
 
@@ -213,8 +215,8 @@ class RecEvalDataset(data_utils.Dataset):
         return {
             'user_id':torch.LongTensor(user),
             'input_ids':torch.LongTensor(seq),
-            'candidates':torch.LongTensor(candidates), 
-            'labels':torch.LongTensor(labels),
+            'candidates':torch.LongTensor(candidates) if not self.full_ranking else candidates,
+            'labels':torch.LongTensor(labels) if not self.full_ranking else labels,
             'behaviors': torch.LongTensor(seq_b),
             'time_bias': bias_matrix,
         }

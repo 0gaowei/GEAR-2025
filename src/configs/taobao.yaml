@@ -22,8 +22,6 @@ fit:
     num_users: 100000  # 需要根据实际数据更新
     max_len: 50
     num_workers: 4
-    val_negative_sampler_code: random
-    val_negative_sample_size: 99  # 全排序模式下此参数无效
     train_batch_size: 128
     val_batch_size: 64  # 全排序模式下可能需要减小batch size
     predict_only_target: False
