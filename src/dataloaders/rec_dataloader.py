@@ -55,8 +55,13 @@ class RecDataloader(AbstractDataloader):
         return dataloader
 
     def get_test_loader(self):
+        # Strictly require test set - no fallback to validation set
         if not (self.test and self.test_b):
-            return None
+            raise ValueError(
+                "Test set is not available. "
+                "Please ensure the dataset was split with train/val/test using leave_one_out split, "
+                "which requires at least 3 target behavior interactions per user."
+            )
         dataset = self._get_test_dataset()
         dataloader = data_utils.DataLoader(dataset, batch_size=self.val_batch_size,
                                            shuffle=False, num_workers=self.num_workers)
@@ -77,12 +82,37 @@ class RecDataloader(AbstractDataloader):
         return val_dataset
 
     def _get_test_dataset(self):
+        # Test历史: test之前的所有交互（包含Valid目标）
+        # 需要合并 train 和 val 作为测试的历史序列
+        test_history = {}
+        test_history_b = {}
+        test_history_t = None
+        
+        # Merge train and val for each user to form test history
+        if self.train_t is not None and self.val_t is not None:
+            test_history_t = {}
+        
+        for user in self.test.keys():
+            # Test history = train + val (包含Valid目标)
+            train_seq = self.train.get(user, [])
+            val_seq = self.val.get(user, [])
+            test_history[user] = train_seq + val_seq
+            
+            train_b_seq = self.train_b.get(user, [])
+            val_b_seq = self.val_b.get(user, [])
+            test_history_b[user] = train_b_seq + val_b_seq
+            
+            if test_history_t is not None:
+                train_t_seq = self.train_t.get(user, [])
+                val_t_seq = self.val_t.get(user, [])
+                test_history_t[user] = train_t_seq + val_t_seq
+        
         # 检查是否启用全排序模式
         full_ranking = getattr(self, 'full_ranking', False)
         test_dataset = RecEvalDataset(
-            self.train, self.train_b,
-            self.test, self.test_b,
-            self.train_t, self.test_t,
+            test_history, test_history_b,  # Test历史: train + val
+            self.test, self.test_b,        # Test答案
+            test_history_t, self.test_t,   # Test时间历史
             self.test_num, self.seg_len,
             self.num_items, self.target_code,
             self.val_negative_samples,

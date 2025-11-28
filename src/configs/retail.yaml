@@ -21,7 +21,7 @@ fit:
     num_items: 99037
     num_users: 147894
     max_len: 50
-    num_workers: 4
+    num_workers: 32
     train_batch_size: 96  # 每个GPU的batch size，两个GPU总有效batch size为192
     val_batch_size: 128
     predict_only_target: False
@@ -46,3 +46,38 @@ fit:
     init_args:
       lr: 0.001
       weight_decay: 0.000001
+
+test:
+  model:
+    backbone:
+      class_path: src.model.GEAR
+      init_args:
+        max_len: 50
+        d_model: 32
+        n_head: 2
+        n_b: 4
+        dropout: 0.2
+        n_layer: 4
+        num_items: 99037
+        num_users: 147894
+    alpha: 0.1
+
+  data:
+    dataset_code: 'retail'
+    target_behavior: 'buy'
+    multi_behavior: True
+    min_uc: 3
+    num_items: 99037
+    num_users: 147894
+    max_len: 50
+    num_workers: 32
+    val_batch_size: 128
+    predict_only_target: False
+    full_ranking: true
+
+  trainer:
+    default_root_dir: logs/retail/full
+    devices: [0, 1]  # 使用两个GPU
+    accelerator: gpu
+    strategy: ddp  # 使用分布式数据并行策略
+  seed_everything: 42

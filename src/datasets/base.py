@@ -71,15 +71,25 @@ class AbstractDataset(metaclass=ABCMeta):
         df, umap, smap, bmap = self.densify_index(df)
         self.bmap = bmap
 
-        train, train_b, val, val_b, train_t, val_t, val_num = self.split_df(df, len(umap))
+        split_result = self.split_df(df, len(umap))
+        if len(split_result) == 11:  # With time gaps
+            train, train_b, val, val_b, test, test_b, train_t, val_t, test_t, val_num, test_num = split_result
+        else:  # Without time gaps
+            train, train_b, val, val_b, test, test_b, train_t, val_t, test_t, val_num, test_num = split_result
+            train_t = val_t = test_t = None
+        
         dataset = {
             'train': train,
             'val': val,
+            'test': test,
             'train_b': train_b,
             'val_b': val_b,
+            'test_b': test_b,
             'train_t': train_t, 
-            'val_t': val_t, 
+            'val_t': val_t,
+            'test_t': test_t,
             'val_num': val_num,
+            'test_num': test_num,
             'umap': umap,
             'smap': smap,
             'bmap': bmap
@@ -123,7 +133,7 @@ class AbstractDataset(metaclass=ABCMeta):
 
     def split_df(self, df, user_count):      
         if self.split == 'leave_one_out':
-            print('Splitting')
+            print('Splitting (train/val/test with leave-one-out)')
             user_group = df.groupby('uid')
             user2items = user_group.progress_apply(lambda d: list(d['sid']))
             user2behaviors = user_group.progress_apply(lambda d: list(d['behavior']))
@@ -134,29 +144,66 @@ class AbstractDataset(metaclass=ABCMeta):
             else:
                 user2timegaps = None
             
-            train, train_b, val, val_b = {}, {}, {}, {}
-            train_t, val_t = ({}, {}) if process_time_gap else (None, None)
+            target_behavior_code = self.bmap[self.target_behavior]
+            train, train_b, val, val_b, test, test_b = {}, {}, {}, {}, {}, {}
+            train_t, val_t, test_t = ({}, {}, {}) if process_time_gap else (None, None, None)
             
             for user in range(1, user_count + 1):
                 items = user2items[user]
                 behaviors = user2behaviors[user]
                 timegaps = user2timegaps[user] if process_time_gap else []
                 
-                if behaviors[-1] == self.bmap[self.target_behavior]:
-                    train[user], val[user] = items[:-1], items[-1:]
-                    train_b[user], val_b[user] = behaviors[:-1], behaviors[-1:]
+                # Find all positions of target behavior interactions
+                target_indices = [i for i, b in enumerate(behaviors) if b == target_behavior_code]
+                
+                # Require at least 3 target behaviors for train/val/test split
+                if len(target_indices) >= 3:
+                    # Valid: second-to-last target behavior (倒数第二个)
+                    # Test: last target behavior (最后一个)
+                    val_idx = target_indices[-2]  # 倒数第二个目标行为的位置
+                    test_idx = target_indices[-1]  # 最后一个目标行为的位置
+                    
+                    # Train: all interactions before valid (valid之前的所有交互)
+                    train[user] = items[:val_idx]
+                    train_b[user] = behaviors[:val_idx]
                     if process_time_gap:
-                        train_t[user], val_t[user] = timegaps[:-1], timegaps[-1:]
+                        train_t[user] = timegaps[:val_idx]
+                    
+                    # Valid: the second-to-last target behavior
+                    val[user] = items[val_idx:val_idx+1]
+                    val_b[user] = behaviors[val_idx:val_idx+1]
+                    if process_time_gap:
+                        val_t[user] = timegaps[val_idx:val_idx+1]
+                    
+                    # Test: the last target behavior
+                    test[user] = items[test_idx:test_idx+1]
+                    test_b[user] = behaviors[test_idx:test_idx+1]
+                    if process_time_gap:
+                        test_t[user] = timegaps[test_idx:test_idx+1]
+                elif len(target_indices) == 2:
+                    # Only 2 target behaviors: use last one as val, no test
+                    val_idx = target_indices[-1]
+                    train[user] = items[:val_idx]
+                    train_b[user] = behaviors[:val_idx]
+                    if process_time_gap:
+                        train_t[user] = timegaps[:val_idx]
+                    
+                    val[user] = items[val_idx:val_idx+1]
+                    val_b[user] = behaviors[val_idx:val_idx+1]
+                    if process_time_gap:
+                        val_t[user] = timegaps[val_idx:val_idx+1]
+                    # No test for this user
                 else:
+                    # Less than 2 target behaviors: all goes to train, no val/test
                     train[user] = items
                     train_b[user] = behaviors
                     if process_time_gap:
                         train_t[user] = timegaps
             
             if process_time_gap:
-                return train, train_b, val, val_b, train_t, val_t, len(val)
+                return train, train_b, val, val_b, test, test_b, train_t, val_t, test_t, len(val), len(test)
             else:
-                return train, train_b, val, val_b, None, None, len(val)
+                return train, train_b, val, val_b, test, test_b, None, None, None, len(val), len(test)
         else:
             raise NotImplementedError
 
